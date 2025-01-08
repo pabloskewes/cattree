@@ -5,17 +5,24 @@ from pathlib import Path
 from collections import deque
 from dataclasses import dataclass
 
+from cattree.gitignore_parsing import build_gitignore_regex
+
 LOGGER = logging.getLogger(__name__)
 
 ALLOWED_PATTERNS = [
     r".*\.py$",
     r".*\.md$",
     r".*\.txt$",
-    r".*\.json$",
     r".*\.yml$",
     r".*\.yaml$",
 ]
 ALLOWED_REGEX = re.compile("|".join(ALLOWED_PATTERNS))
+
+BLACKLISTED_PATTERNS = [
+    r"^\.",
+    r"__pycache__",
+]
+BLACKLISTED_REGEX = re.compile("|".join(BLACKLISTED_PATTERNS))
 
 
 @dataclass(frozen=True)
@@ -46,6 +53,8 @@ def _matches_pattern(
     name = path.name
 
     if path.is_file() and not ALLOWED_REGEX.match(name):
+        return False
+    if BLACKLISTED_REGEX.match(name):
         return False
     if exclude and re.search(exclude, name):
         return False
@@ -134,6 +143,7 @@ def generate_cattree(
     directory: Path,
     include_pattern: Optional[str] = None,
     exclude_pattern: Optional[str] = None,
+    gitignore: bool = False,
 ) -> str:
     """
     Generate a directory tree structure with optional file content
@@ -145,10 +155,17 @@ def generate_cattree(
             files or directories.
         exclude_pattern (Optional[str]): Regex pattern to exclude specific
             files or directories.
+        gitignore (bool): Whether to use .gitignore files to filter paths.
 
     Returns:
         str: A string representing the directory tree structure.
     """
+    if gitignore:
+        gitignore_pattern = build_gitignore_regex(directory)
+        exclude_pattern = f"{exclude_pattern or ''}|{gitignore_pattern}".strip("|")
+
+    LOGGER.debug(f"Final exclude pattern: {exclude_pattern}")
+
     tree_structure: list[str] = [directory.name]
     file_contents: list[str] = [""]
 
@@ -183,8 +200,6 @@ def generate_cattree(
 if __name__ == "__main__":
     import argparse
 
-    logging.basicConfig(level=logging.DEBUG)
-
     parser = argparse.ArgumentParser(
         description=(
             "Generate a directory tree with regex "
@@ -202,8 +217,20 @@ if __name__ == "__main__":
         type=str,
         help="Regex pattern to exclude specific files or directories.",
     )
+    parser.add_argument(
+        "--gitignore",
+        action="store_true",
+        help="Use .gitignore files to filter paths.",
+    )
+    parser.add_argument(
+        "--log-level",
+        type=str,
+        default="INFO",
+        help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL).",
+    )
 
     args = parser.parse_args()
+    logging.basicConfig(level=args.log_level)
     _root_path = Path(args.path)
     try:
         print(
@@ -211,6 +238,7 @@ if __name__ == "__main__":
                 _root_path,
                 include_pattern=args.include_pattern,
                 exclude_pattern=args.exclude_pattern,
+                gitignore=args.gitignore,
             )
         )
     except ValueError as e:
