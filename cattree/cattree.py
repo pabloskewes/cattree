@@ -17,6 +17,16 @@ BLACKLISTED_PATTERNS = [
     r".*\.svg",
     r".*\.pdf",
     r".*\.db",
+    r".*\.sqlite",
+    r".*\.sqlite3",
+    r".*\.sql",
+    r".*\.tar",
+    r".*\.gz",
+    r".*\.zip",
+    r".*\.rar",
+    r".*\.7z",
+    r".*\.tgz",
+    r".*\.lock",
 ]
 BLACKLISTED_REGEX = re.compile("|".join(BLACKLISTED_PATTERNS))
 
