@@ -1,6 +1,14 @@
-from typing import Optional
+from typing import Optional, Iterator
 from pathlib import Path
+from collections import deque
 import re
+
+from pydantic import BaseModel
+
+
+class DirectoryEntry(BaseModel):
+    path: Path
+    depth: int
 
 
 def _matches_pattern(
@@ -16,62 +24,83 @@ def _matches_pattern(
     return True
 
 
+def traverse_directory_dfs(
+    directory: Path,
+    include_pattern: Optional[str] = None,
+    exclude_pattern: Optional[str] = None,
+) -> Iterator[DirectoryEntry]:
+    """
+    Traverse a directory in DFS order and yield DirectoryEntry objects.
+
+    Args:
+        directory (Path): The root directory to traverse.
+        include_pattern (Optional[str]): Regex pattern to include specific
+            files or directories.
+        exclude_pattern (Optional[str]): Regex pattern to exclude specific
+            files or directories.
+
+    Yields:
+        DirectoryEntry: Pydantic model with path and depth.
+    """
+    if not directory.is_dir():
+        raise ValueError(f"The path {directory} is not a valid directory.")
+
+    stack = deque([(directory, 0)])  # Using deque as a stack for clarity
+    while stack:
+        current_path, depth = stack.pop()
+
+        if not _matches_pattern(
+            current_path, include=include_pattern, exclude=exclude_pattern
+        ):
+            continue
+
+        yield DirectoryEntry(path=current_path, depth=depth)
+
+        if current_path.is_dir():
+            entries = sorted(
+                current_path.iterdir(),
+                key=lambda p: (p.is_file(), p.name.lower()),
+            )
+            for entry in reversed(entries):
+                stack.append((entry, depth + 1))
+
+
 def generate_cattree(
     directory: Path,
-    include_files: bool = True,
     include_pattern: Optional[str] = None,
     exclude_pattern: Optional[str] = None,
 ) -> str:
     """
-    Generate a directory tree structure with optional file content and
-    regex filtering.
+    Generate a directory tree structure with optional file content
+    and regex filtering.
 
     Args:
         directory (Path): Path to the root directory.
-        include_files (bool): Whether to include file contents in the output.
-        include_pattern (str): Regex pattern to include specific files
-        or directories.
-        exclude_pattern (str): Regex pattern to exclude specific files
-        or directories.
+        include_pattern (Optional[str]): Regex pattern to include specific
+        files or directories.
+        exclude_pattern (Optional[str]): Regex pattern to exclude specific
+        files or directories.
 
     Returns:
         str: A string representing the directory tree structure.
     """
+    tree_structure: list[str] = [directory.name]
 
-    def traverse_dir(path: Path, prefix: str = "") -> str:
-        tree_structure = []
-        entries = sorted(
-            path.iterdir(),
-            key=lambda p: (p.is_file(), p.name.lower()),
-        )
+    for entry in traverse_directory_dfs(
+        directory,
+        include_pattern=include_pattern,
+        exclude_pattern=exclude_pattern,
+    ):
+        if entry.depth == 0:
+            # Skip reprinting the root directory itself
+            continue
 
-        for i, entry in enumerate(entries):
-            # Skip entries that don't match the regex patterns
-            if not _matches_pattern(
-                entry, include=include_pattern, exclude=exclude_pattern
-            ):
-                continue
+        # Build the tree prefix based on depth
+        prefix = "    " * (entry.depth - 1)
+        connector = "├── " if entry.path.is_dir() else "└── "
+        tree_structure.append(f"{prefix}{connector}{entry.path.name}")
 
-            connector = "├── " if i < len(entries) - 1 else "└── "
-            tree_structure.append(f"{prefix}{connector}{entry.name}")
-
-            if entry.is_dir():
-                sub_prefix = "│   " if i < len(entries) - 1 else "    "
-                tree_structure.append(traverse_dir(entry, prefix + sub_prefix))
-            elif include_files:
-                try:
-                    content = entry.read_text(errors="replace")
-                    tree_structure.append(f"\n{prefix}    [Content of {entry.name}]\n")
-                    tree_structure.append(f"{prefix}    {content[:200]}...\n")
-                except Exception as e:
-                    tree_structure.append(f"{prefix}    [Error reading file: {e}]\n")
-
-        return "\n".join(tree_structure)
-
-    if not directory.is_dir():
-        raise ValueError(f"The path {directory} is not a valid directory.")
-
-    return traverse_dir(directory)
+    return "\n".join(tree_structure)
 
 
 if __name__ == "__main__":
@@ -84,11 +113,6 @@ if __name__ == "__main__":
         )
     )
     parser.add_argument("path", type=str, help="Path to the root directory.")
-    parser.add_argument(
-        "--include-files",
-        action="store_true",
-        help="Include file contents in the output.",
-    )
     parser.add_argument(
         "--include-pattern",
         type=str,
@@ -106,7 +130,6 @@ if __name__ == "__main__":
         print(
             generate_cattree(
                 root_path,
-                include_files=args.include_files,
                 include_pattern=args.include_pattern,
                 exclude_pattern=args.exclude_pattern,
             )
