@@ -50,13 +50,10 @@ def _matches_pattern(
 
     if BLACKLISTED_REGEX.search(name):
         return False
-
     if exclude and re.search(exclude, name):
         return False
-
     if include and not re.search(include, name):
         return False
-
     return True
 
 
