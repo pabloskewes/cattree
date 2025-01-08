@@ -5,6 +5,22 @@ import re
 
 from pydantic import BaseModel
 
+BLACKLISTED_PATTERNS = [
+    r"^\.",
+    r"__pycache__",
+    r".*\.png",
+    r".*\.jpg",
+    r".*\.jpeg",
+    r".*\.gif",
+    r".*\.bmp",
+    r".*\.tiff",
+    r".*\.ico",
+    r".*\.svg",
+    r".*\.pdf",
+    r".*\.db",
+]
+BLACKLISTED_REGEX = re.compile("|".join(BLACKLISTED_PATTERNS))
+
 
 class DirectoryEntry(BaseModel):
     path: Path
@@ -16,11 +32,31 @@ def _matches_pattern(
     include: Optional[str] = None,
     exclude: Optional[str] = None,
 ) -> bool:
+    """
+    Check if a file or directory matches the include, exclude, and blacklist
+    regex patterns.
+
+    Args:
+        path (Path): The path to check.
+        include (Optional[str]): Regex pattern to include specific files
+            or directories.
+        exclude (Optional[str]): Regex pattern to exclude specific files
+            or directories.
+
+    Returns:
+        bool: True if the path matches the patterns, False otherwise.
+    """
     name = path.name
+
+    if BLACKLISTED_REGEX.search(name):
+        return False
+
     if exclude and re.search(exclude, name):
         return False
+
     if include and not re.search(include, name):
         return False
+
     return True
 
 
@@ -65,6 +101,35 @@ def traverse_directory_dfs(
                 stack.append((entry, depth + 1))
 
 
+def format_file_content(path: Path, max_lines: Optional[int] = None) -> str:
+    """
+    Read the content of a file up to a specified number of lines.
+
+    Args:
+        path (Path): Path to the file.
+        max_lines (Optional[int]): Maximum number of lines to read.
+            If None, read the entire file.
+
+    Returns:
+        str: The content of the file with '...' appended if truncated.
+    """
+    if not path.is_file():
+        raise ValueError(f"The path {path} is not a valid file.")
+
+    lines = [str(path)]
+    try:
+        with open(path, "r", encoding="utf-8") as file:
+            for i, line in enumerate(file):
+                if max_lines is not None and i >= max_lines:
+                    lines.append("...")
+                    break
+                lines.append(line)
+    except UnicodeDecodeError as e:
+        raise ValueError(f"Failed to read file {path}") from e
+
+    return "".join(lines)
+
+
 def generate_cattree(
     directory: Path,
     include_pattern: Optional[str] = None,
@@ -77,14 +142,15 @@ def generate_cattree(
     Args:
         directory (Path): Path to the root directory.
         include_pattern (Optional[str]): Regex pattern to include specific
-        files or directories.
+            files or directories.
         exclude_pattern (Optional[str]): Regex pattern to exclude specific
-        files or directories.
+            files or directories.
 
     Returns:
         str: A string representing the directory tree structure.
     """
     tree_structure: list[str] = [directory.name]
+    file_contents: list[str] = [""]
 
     for entry in traverse_directory_dfs(
         directory,
@@ -100,7 +166,16 @@ def generate_cattree(
         connector = "├── " if entry.path.is_dir() else "└── "
         tree_structure.append(f"{prefix}{connector}{entry.path.name}")
 
-    return "\n".join(tree_structure)
+        if entry.path.is_file():
+            file_contents.append(format_file_content(entry.path))
+        else:
+            file_contents.append("")  # Empty line for directories
+
+    formatted_directory_tree = "\n".join(tree_structure)
+    formatted_file_contents = f"\n{'-' * 80}\n".join(
+        (content for content in file_contents if content)
+    )
+    return f"{formatted_directory_tree}\n{formatted_file_contents}"
 
 
 if __name__ == "__main__":
