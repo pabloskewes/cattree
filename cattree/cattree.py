@@ -1,9 +1,8 @@
+import re
 from typing import Optional, Iterator
 from pathlib import Path
 from collections import deque
-import re
-
-from pydantic import BaseModel
+from dataclasses import dataclass
 
 BLACKLISTED_PATTERNS = [
     r"^\.",
@@ -22,7 +21,8 @@ BLACKLISTED_PATTERNS = [
 BLACKLISTED_REGEX = re.compile("|".join(BLACKLISTED_PATTERNS))
 
 
-class DirectoryEntry(BaseModel):
+@dataclass(frozen=True)
+class DirectoryEntry:
     path: Path
     depth: int
 
@@ -81,7 +81,7 @@ def traverse_directory_dfs(
     if not directory.is_dir():
         raise ValueError(f"The path {directory} is not a valid directory.")
 
-    stack = deque([(directory, 0)])  # Using deque as a stack for clarity
+    stack = deque([(directory, 0)])
     while stack:
         current_path, depth = stack.pop()
 
