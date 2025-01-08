@@ -1,34 +1,21 @@
 import re
+import logging
 from typing import Optional, Iterator
 from pathlib import Path
 from collections import deque
 from dataclasses import dataclass
 
-BLACKLISTED_PATTERNS = [
-    r"^\.",
-    r"__pycache__",
-    r".*\.png",
-    r".*\.jpg",
-    r".*\.jpeg",
-    r".*\.gif",
-    r".*\.bmp",
-    r".*\.tiff",
-    r".*\.ico",
-    r".*\.svg",
-    r".*\.pdf",
-    r".*\.db",
-    r".*\.sqlite",
-    r".*\.sqlite3",
-    r".*\.sql",
-    r".*\.tar",
-    r".*\.gz",
-    r".*\.zip",
-    r".*\.rar",
-    r".*\.7z",
-    r".*\.tgz",
-    r".*\.lock",
+LOGGER = logging.getLogger(__name__)
+
+ALLOWED_PATTERNS = [
+    r".*\.py$",
+    r".*\.md$",
+    r".*\.txt$",
+    r".*\.json$",
+    r".*\.yml$",
+    r".*\.yaml$",
 ]
-BLACKLISTED_REGEX = re.compile("|".join(BLACKLISTED_PATTERNS))
+ALLOWED_REGEX = re.compile("|".join(ALLOWED_PATTERNS))
 
 
 @dataclass(frozen=True)
@@ -58,7 +45,7 @@ def _matches_pattern(
     """
     name = path.name
 
-    if BLACKLISTED_REGEX.search(name):
+    if path.is_file() and not ALLOWED_REGEX.match(name):
         return False
     if exclude and re.search(exclude, name):
         return False
@@ -95,6 +82,7 @@ def traverse_directory_dfs(
         if not _matches_pattern(
             current_path, include=include_pattern, exclude=exclude_pattern
         ):
+            LOGGER.debug(f"Skipping {current_path}")
             continue
 
         yield DirectoryEntry(path=current_path, depth=depth)
@@ -194,6 +182,8 @@ def generate_cattree(
 
 if __name__ == "__main__":
     import argparse
+
+    logging.basicConfig(level=logging.DEBUG)
 
     parser = argparse.ArgumentParser(
         description=(

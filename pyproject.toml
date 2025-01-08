@@ -6,4 +6,9 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = ["typer>=0.15.1"]
 
-scripts = { cattree = "cattree.cli:app" }
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+cattree = "cattree.cli:app"
