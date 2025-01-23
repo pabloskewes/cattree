@@ -27,6 +27,18 @@ def cattree(
         "-e",
         help="Regex pattern to exclude specific files or directories.",
     ),
+    max_lines: int = typer.Option(
+        None,
+        "--max-lines",
+        "-m",
+        help="Maximum number of lines to display for each file.",
+    ),
+    compact_code: bool = typer.Option(
+        False,
+        "--compact-code",
+        "-c",
+        help="Remove whitespace from the file content.",
+    ),
 ):
     """
     Generate a directory tree for a given directory path.
@@ -36,6 +48,8 @@ def cattree(
             directory=path,
             include_pattern=include_pattern,
             exclude_pattern=exclude_pattern,
+            max_lines=max_lines,
+            compact_code=compact_code,
         )
         print(output)
     except ValueError as e:

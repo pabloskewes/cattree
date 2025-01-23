@@ -115,15 +115,19 @@ def format_file_content(
     path: Path,
     root_path: Path,
     max_lines: Optional[int] = None,
+    compact_code: bool = False,
 ) -> str:
     """
-    Read the content of a file up to a specified number of lines.
+    Read the content of a file up to a specified number of lines,
+    with an option to remove whitespace.
 
     Args:
         path (Path): Path to the file.
         root_path (Path): Root path to use for relative paths.
         max_lines (Optional[int]): Maximum number of lines to read.
             If None, read the entire file.
+        compact_code (bool): Whether to remove whitespace from the
+            file content.
 
     Returns:
         str: The content of the file with '...' appended if truncated.
@@ -134,11 +138,17 @@ def format_file_content(
     lines = [f"{path.relative_to(root_path)}:\n"]
     try:
         with open(path, "r", encoding="utf-8") as file:
-            for i, line in enumerate(file):
-                if max_lines is not None and i >= max_lines:
-                    lines.append("...")
-                    break
-                lines.append(line)
+            content = file.readlines()
+
+        if max_lines is not None:
+            content = content[:max_lines]
+            if len(content) == max_lines:
+                content.append("...")
+
+        if compact_code:
+            content = [re.sub(r"\s+", " ", line).strip() for line in content]
+
+        lines.extend(content)
     except UnicodeDecodeError as e:
         raise ValueError(f"Failed to read file {path}") from e
 
@@ -150,6 +160,8 @@ def generate_cattree(
     include_pattern: Optional[str] = None,
     exclude_pattern: Optional[str] = None,
     gitignore: bool = False,
+    max_lines: Optional[int] = None,
+    compact_code: bool = False,
 ) -> str:
     """
     Generate a directory tree structure with optional file content
@@ -162,6 +174,8 @@ def generate_cattree(
         exclude_pattern (Optional[str]): Regex pattern to exclude specific
             files or directories.
         gitignore (bool): Whether to use .gitignore files to filter paths.
+        compact_code (bool): Whether to remove whitespace from the
+            file content.
 
     Returns:
         str: A string representing the directory tree structure.
@@ -191,7 +205,12 @@ def generate_cattree(
 
         if entry.path.is_file():
             file_contents.append(
-                format_file_content(path=entry.path, root_path=directory)
+                format_file_content(
+                    path=entry.path,
+                    root_path=directory,
+                    max_lines=max_lines,
+                    compact_code=compact_code,
+                )
             )
         else:
             file_contents.append("")  # Empty line for directories
