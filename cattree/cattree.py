@@ -15,6 +15,12 @@ ALLOWED_PATTERNS = [
     r".*\.txt$",
     r".*\.yml$",
     r".*\.yaml$",
+    r".*\.json$",
+    r".*\.toml$",
+    r".*\.cpp$",
+    r".*\.h$",
+    r".*\.hpp$",
+    r".*\.c$",
 ]
 ALLOWED_REGEX = re.compile("|".join(ALLOWED_PATTERNS))
 
