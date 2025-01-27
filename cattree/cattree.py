@@ -139,18 +139,18 @@ def format_file_content(
     try:
         with open(path, "r", encoding="utf-8") as file:
             content = file.readlines()
-
-        if max_lines is not None:
-            content = content[:max_lines]
-            if len(content) == max_lines:
-                content.append("...")
-
-        if compact_code:
-            content = [re.sub(r"\s+", " ", line).strip() for line in content]
-
-        lines.extend(content)
     except UnicodeDecodeError as e:
         raise ValueError(f"Failed to read file {path}") from e
+
+    if max_lines is not None:
+        content = content[:max_lines]
+        if len(content) == max_lines:
+            content.append("...")
+
+    if compact_code:
+        content = [re.sub(r"\s+", " ", line).strip() for line in content]
+
+    lines.extend(content)
 
     return "".join(lines)
 

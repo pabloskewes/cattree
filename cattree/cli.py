@@ -51,7 +51,7 @@ def cattree(
             max_lines=max_lines,
             compact_code=compact_code,
         )
-        print(output)
+        typer.echo(output)
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1)
