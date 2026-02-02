@@ -1,9 +1,9 @@
-import re
 import logging
-from typing import Optional, Iterator
-from pathlib import Path
+import re
 from collections import deque
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterator, Optional
 
 from cattree.gitignore_parsing import build_gitignore_regex
 
@@ -164,8 +164,47 @@ def format_file_content(
     return "".join(lines)
 
 
+def _is_path_allowed(path: Path, only_paths: set[Path], root: Path) -> bool:
+    """
+    Check if a path should be included based on --only filter.
+
+    Args:
+        path (Path): Path to check.
+        only_paths (set[Path]): Set of allowed paths from --only.
+        root (Path): Root directory.
+
+    Returns:
+        bool: True if path is allowed, False otherwise.
+    """
+    path_resolved = path.resolve()
+
+    # Check if path is explicitly in the set
+    if path_resolved in only_paths:
+        return True
+
+    # Check if path is a descendant of any allowed directory
+    for allowed in only_paths:
+        if allowed.is_dir():
+            try:
+                path_resolved.relative_to(allowed)
+                return True
+            except ValueError:
+                continue
+
+    # Check if path is an ancestor of any allowed path
+    for allowed in only_paths:
+        try:
+            allowed.relative_to(path_resolved)
+            return True
+        except ValueError:
+            continue
+
+    return False
+
+
 def generate_cattree(
     directory: Path,
+    only_paths: Optional[list[str]] = None,
     include_pattern: Optional[str] = None,
     exclude_pattern: Optional[str] = None,
     gitignore: bool = False,
@@ -178,17 +217,27 @@ def generate_cattree(
 
     Args:
         directory (Path): Path to the root directory.
+        only_paths (Optional[list[str]]): Specific paths to include (maintains hierarchy).
+            Takes priority over include_pattern.
         include_pattern (Optional[str]): Regex pattern to include specific
             files or directories.
         exclude_pattern (Optional[str]): Regex pattern to exclude specific
             files or directories.
         gitignore (bool): Whether to use .gitignore files to filter paths.
+        max_lines (Optional[int]): Maximum number of lines to read per file.
         compact_code (bool): Whether to remove whitespace from the
             file content.
 
     Returns:
         str: A string representing the directory tree structure.
     """
+    # Build allowed paths set if --only is specified
+    only_paths_set = None
+    if only_paths:
+        only_paths_set = {(directory / p).resolve() for p in only_paths}
+        # --only takes priority over --include-pattern
+        include_pattern = None
+
     if gitignore:
         gitignore_pattern = build_gitignore_regex(directory)
         exclude_pattern = f"{exclude_pattern or ''}|{gitignore_pattern}".strip("|")
@@ -205,6 +254,12 @@ def generate_cattree(
     ):
         if entry.depth == 0:
             # Skip reprinting the root directory itself
+            continue
+
+        # If --only is specified, skip paths not allowed
+        if only_paths_set and not _is_path_allowed(
+            entry.path, only_paths_set, directory
+        ):
             continue
 
         # Build the tree prefix based on depth
@@ -242,6 +297,12 @@ if __name__ == "__main__":
     )
     parser.add_argument("path", type=str, help="Path to the root directory.")
     parser.add_argument(
+        "--only",
+        type=str,
+        action="append",
+        help="Specific files or directories to include (maintains hierarchy). Can be used multiple times.",
+    )
+    parser.add_argument(
         "--include-pattern",
         type=str,
         help="Regex pattern to include specific files or directories.",
@@ -270,6 +331,7 @@ if __name__ == "__main__":
         print(
             generate_cattree(
                 _root_path,
+                only_paths=args.only,
                 include_pattern=args.include_pattern,
                 exclude_pattern=args.exclude_pattern,
                 gitignore=args.gitignore,

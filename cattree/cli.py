@@ -15,6 +15,12 @@ app = typer.Typer(
 @app.command()
 def cattree(
     path: Path = typer.Argument(..., help="Path to the root directory."),
+    only: list[str] = typer.Option(
+        None,
+        "--only",
+        "-o",
+        help="Specific files or directories to include (maintains hierarchy). Can be used multiple times.",
+    ),
     include_pattern: str = typer.Option(
         None,
         "--include-pattern",
@@ -52,6 +58,7 @@ def cattree(
     try:
         output = generate_cattree(
             directory=path,
+            only_paths=only if only else None,
             include_pattern=include_pattern,
             exclude_pattern=exclude_pattern,
             gitignore=gitignore,
