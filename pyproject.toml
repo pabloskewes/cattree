@@ -1,7 +1,7 @@
 [project]
 name = "cattree"
 version = "0.1.0"
-description = "Add your description here"
+description = "A tree + cat combo: view directory structure with file contents in one command"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = ["typer>=0.15.1"]
