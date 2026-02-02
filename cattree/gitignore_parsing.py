@@ -36,21 +36,42 @@ def _convert_gitignore_to_regex(pattern: str) -> Optional[str]:
     if pattern in ["*", "**"]:
         return None
 
-    # Handle special cases: `**` matches zero or more directories
-    pattern = pattern.replace("**/", "(?:.*/)?")
-    pattern = pattern.replace("**", ".*")  # ** also matches any sequence of characters
-
-    # Escape special regex characters
+    original_pattern = pattern
+    
+    # Check if pattern ends with / (directory only)
+    is_dir_only = pattern.endswith("/")
+    if is_dir_only:
+        pattern = pattern.rstrip("/")
+    
+    # Check if pattern starts with / (root-relative)
+    is_root_relative = pattern.startswith("/")
+    if is_root_relative:
+        pattern = pattern.lstrip("/")
+    
+    # Escape special regex characters before processing wildcards
     pattern = re.escape(pattern)
-
+    
     # Convert .gitignore wildcards to regex equivalents
-    pattern = pattern.replace(r"\*", ".*")  # Match zero or more characters
-    pattern = pattern.replace(r"\?", ".")  # Match a single character
-
-    if pattern.endswith(r"/"):
-        # Match directories (trailing slash in .gitignore)
-        return f"^{pattern}.*$"
-    return f"^{pattern}$"
+    pattern = pattern.replace(r"\*\*", "DOUBLESTAR")  # Placeholder
+    pattern = pattern.replace(r"\*", "[^/]*")  # * matches anything except /
+    pattern = pattern.replace(r"\?", "[^/]")  # ? matches single char except /
+    pattern = pattern.replace("DOUBLESTAR", ".*")  # ** matches anything including /
+    
+    # Build the final regex
+    if is_root_relative:
+        # Pattern like /build/ or /file.txt - match from root
+        if is_dir_only:
+            return f"^{pattern}(/.*)?$"
+        else:
+            return f"^{pattern}$"
+    else:
+        # Pattern like build/ or *.pyc - match anywhere in the tree
+        if is_dir_only:
+            # Match directory name anywhere and everything inside it
+            return f"(^|/){pattern}(/.*)?$"
+        else:
+            # Match file/directory name anywhere
+            return f"(^|/){pattern}$"
 
 
 def build_gitignore_regex(directory: Path) -> str:

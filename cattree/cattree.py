@@ -39,6 +39,7 @@ class DirectoryEntry:
 
 def _matches_pattern(
     path: Path,
+    root_path: Path,
     include: Optional[str] = None,
     exclude: Optional[str] = None,
 ) -> bool:
@@ -48,6 +49,7 @@ def _matches_pattern(
 
     Args:
         path (Path): The path to check.
+        root_path (Path): The root directory path for relative path calculation.
         include (Optional[str]): Regex pattern to include specific files
             or directories.
         exclude (Optional[str]): Regex pattern to exclude specific files
@@ -57,14 +59,20 @@ def _matches_pattern(
         bool: True if the path matches the patterns, False otherwise.
     """
     name = path.name
+    # Get relative path from root for gitignore-style matching
+    try:
+        relative_path = str(path.relative_to(root_path))
+    except ValueError:
+        relative_path = name
 
     if path.is_file() and not ALLOWED_REGEX.match(name):
         return False
     if BLACKLISTED_REGEX.match(name):
         return False
-    if exclude and re.search(exclude, name):
+    # Check against both name and relative path for gitignore compatibility
+    if exclude and (re.search(exclude, name) or re.search(exclude, relative_path)):
         return False
-    if include and not re.search(include, name):
+    if include and not (re.search(include, name) or re.search(include, relative_path)):
         return False
     return True
 
@@ -90,12 +98,13 @@ def traverse_directory_dfs(
     if not directory.is_dir():
         raise ValueError(f"The path {directory} is not a valid directory.")
 
+    root_path = directory
     stack = deque([(directory, 0)])
     while stack:
         current_path, depth = stack.pop()
 
         if not _matches_pattern(
-            current_path, include=include_pattern, exclude=exclude_pattern
+            current_path, root_path, include=include_pattern, exclude=exclude_pattern
         ):
             LOGGER.debug(f"Skipping {current_path}")
             continue

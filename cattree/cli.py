@@ -27,6 +27,12 @@ def cattree(
         "-e",
         help="Regex pattern to exclude specific files or directories.",
     ),
+    gitignore: bool = typer.Option(
+        False,
+        "--gitignore",
+        "-g",
+        help="Use .gitignore files to filter paths.",
+    ),
     max_lines: int = typer.Option(
         None,
         "--max-lines",
@@ -48,6 +54,7 @@ def cattree(
             directory=path,
             include_pattern=include_pattern,
             exclude_pattern=exclude_pattern,
+            gitignore=gitignore,
             max_lines=max_lines,
             compact_code=compact_code,
         )
